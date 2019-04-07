@@ -99,7 +99,8 @@ class LWTAuthentication(BaseLWTAuthentication):
                 }
         for field in SETTINGS['SAVE_USER_FIELDS']:
             msg[field] = getattr(user, field)
-        msg = json.dumps(msg).encode('utf-8')
+        msg = json.dumps(
+                msg, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
         exp_time = int(time.time()) + SETTINGS['EXPIRATION']
         token = self.bwt.encode(
                 msg, app_version=SETTINGS['APP_VERSION'], exp=exp_time)
