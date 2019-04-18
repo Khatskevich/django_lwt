@@ -10,20 +10,29 @@ from . import exceptions as BEx
 import json
 from django.contrib.auth import get_user_model
 
-SETTINGS = {
+__SETTINGS = {
         'APP_VERSION': 0,
         'EXPIRATION': 60 * 60 * 24 * 365,
         'SAVE_USER_FIELDS': []
         }
 
-if hasattr(settings, 'LWT_AUTHENTICATION'):
+__INITIALIZED = False
+
+
+def __init_settings():
+    global __INITIALIZED
+    if __INITIALIZED:
+        return
+    if not hasattr(settings, 'LWT_AUTHENTICATION'):
+        return
     explicit_settings = settings.LWT_AUTHENTICATION
-    for key in SETTINGS.keys():
+    for key in __SETTINGS.keys():
         if key in explicit_settings:
-            SETTINGS[key] = explicit_settings[key]
-    uf = SETTINGS['SAVE_USER_FIELDS']
+            __SETTINGS[key] = explicit_settings[key]
+    uf = __SETTINGS['SAVE_USER_FIELDS']
     uf = set(uf) - {'id', 'pk'}
-    SETTINGS['SAVE_USER_FIELDS'] = list(uf)
+    __SETTINGS['SAVE_USER_FIELDS'] = list(uf)
+    __INITIALIZED = True
 
 
 class BaseLWTAuthentication(BaseAuthentication):
@@ -33,6 +42,7 @@ class BaseLWTAuthentication(BaseAuthentication):
     LWT_AUTH_COOKIE = 'lwt'
 
     def __init__(self, *args, **kwargs):
+        __init_settings()
         super().__init__(*args, **kwargs)
         self.bwt = BWT(settings.SECRET_KEY)
 
@@ -51,7 +61,8 @@ class BaseLWTAuthentication(BaseAuthentication):
         if lwt_value is None:
             return None
         try:
-            data = self.bwt.decode(lwt_value)
+            issue_max_time = int(time.time()) - __SETTINGS['EXPIRATION']
+            data = self.bwt.decode(lwt_value, issue_max_time)
         except BEx.BWTExpired:
             raise REx.AuthenticationFailed("Signature expired")
         except BEx.BWTException:
@@ -97,18 +108,17 @@ class LWTAuthentication(BaseLWTAuthentication):
                 # Explicitly convert to string, for tupes
                 'pk': str(user.id)
                 }
-        for field in SETTINGS['SAVE_USER_FIELDS']:
+        for field in __SETTINGS['SAVE_USER_FIELDS']:
             msg[field] = getattr(user, field)
         msg = json.dumps(
                 msg, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
-        exp_time = int(time.time()) + SETTINGS['EXPIRATION']
         token = self.bwt.encode(
-                msg, app_version=SETTINGS['APP_VERSION'], exp=exp_time)
+                msg, app_version=__SETTINGS['APP_VERSION'])
         return token
 
     def get_user(self, data):
         user = self.get_blank_user(data['msg']['pk'])
-        for field in SETTINGS['SAVE_USER_FIELDS']:
+        for field in __SETTINGS['SAVE_USER_FIELDS']:
             setattr(user, field, data['msg'][field])
         return user
 
