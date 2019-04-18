@@ -41,7 +41,7 @@ header.data.signature
 Header consists of:
 1. 1 byte BWT version
 2. 1 byte user app version (in case data format changes)
-3. 4 byte expiration time
+3. 4 byte issue time
 
 ### Data
 Data can be any byte array, which allows more space efficient custom

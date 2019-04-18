@@ -20,7 +20,6 @@ def base64url_encode(input):
 
 class BWT():
     version = 0
-    max_timestamp = 4102444800  # 2100 y
     alg = hashlib.sha256
 
     def __init__(self, key):
@@ -35,8 +34,8 @@ class BWT():
     def verify(self, msg, sig):
         return hmac.compare_digest(sig, self.sign(msg))
 
-    def header_encode(self, app_version, exp):
-        return struct.pack('!BBL', self.version, app_version, exp)
+    def header_encode(self, app_version, issue_time):
+        return struct.pack('!BBL', self.version, app_version, issue_time)
 
     def header_decode(self, header):
         unpacked = struct.unpack('!BBL', header)
@@ -44,10 +43,10 @@ class BWT():
             BEx.BWTNotSupported("Only 0 BWT version is supported")
         return unpacked
 
-    def encode(self, msg, app_version=0, exp=max_timestamp):
-        if exp > self.max_timestamp:
-            exp = self.max_timestamp
-        header = base64url_encode(self.header_encode(app_version, exp))
+    def encode(self, msg, app_version=0):
+        issue_time = int(time.time())
+        header = base64url_encode(self.header_encode(app_version,
+                                                     issue_time))
         msg = base64url_encode(msg)
         if type(msg) != bytes:
             raise BEx.BWTInvalid('Message should be of bytes type')
@@ -56,8 +55,9 @@ class BWT():
         segments.append(signature)
         return (b'.'.join(segments)).decode('utf-8')
 
-    def decode(self, data):
-        xsegments = data.split(b'.')
+    def decode(self, data, issue_max_time):
+        assert type(data) == bytes
+        xsegments = data.encode('utf-8').split(b'.')
         if len(xsegments) != 3:
             raise BEx.BWTInvalid('Invalid token')
         segments = [base64url_decode(x) for x in xsegments]
@@ -65,13 +65,13 @@ class BWT():
         valid = self.verify(b'.'.join([xsegments[0], xsegments[1]]), signature)
         if not valid:
             raise BEx.BWTInvalid('Invalid token')
-        bwt_v, app_version, exp = self.header_decode(header)
+        bwt_v, app_version, issue_time = self.header_decode(header)
         ts = time.time()
-        if exp < ts:
+        if issue_max_time < issue_time:
             raise BEx.BWTExpired()
         res = {
                 'msg': msg,
-                'exp': exp,
+                'issue_time': issue_time,
                 'bwt_version': bwt_v,
                 'app_version': app_version,
                 }
