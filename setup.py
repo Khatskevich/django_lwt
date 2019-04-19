@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='django-lwt',
-      version='0.0.1',
+      version='0.0.2',
       description='Lightweight Web Token Authentication, similar to JWT',
       url='https://github.com/Khatskevich/django_lwt',
       author='Alex Khatskevich',

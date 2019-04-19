@@ -56,8 +56,9 @@ class BWT():
         return (b'.'.join(segments)).decode('utf-8')
 
     def decode(self, data, issue_max_time):
-        assert type(data) == bytes
-        xsegments = data.encode('utf-8').split(b'.')
+        if type(data) == str:
+            data = data.encode('utf-8')
+        xsegments = data.split(b'.')
         if len(xsegments) != 3:
             raise BEx.BWTInvalid('Invalid token')
         segments = [base64url_decode(x) for x in xsegments]
