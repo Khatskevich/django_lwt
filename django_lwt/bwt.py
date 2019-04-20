@@ -68,7 +68,7 @@ class BWT():
             raise BEx.BWTInvalid('Invalid token')
         bwt_v, app_version, issue_time = self.header_decode(header)
         ts = time.time()
-        if issue_max_time < issue_time:
+        if issue_max_time > issue_time:
             raise BEx.BWTExpired()
         res = {
                 'msg': msg,
