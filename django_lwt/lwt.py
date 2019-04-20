@@ -12,8 +12,15 @@ from django.contrib.auth import get_user_model
 
 __SETTINGS = {
         'APP_VERSION': 0,
-        'EXPIRATION': 60 * 60 * 24 * 365,
-        'SAVE_USER_FIELDS': []
+        # When the token cannot be trusted.
+        'SIGNATURE_EXPIRATION': 60 * 60 * 24 * 365,
+        # When data should be updated from db.
+        'DATA_EXPIRATION': 60 * 60 * 24 * 14,
+        # User fields to be stored in token. Can be accessed without
+        # querying db.
+        'SAVE_USER_FIELDS': [],
+        'COOKIE_NAME': 'lwt',
+        'AUTH_HEADER_PREFIX': 'lwt',
         }
 
 __INITIALIZED = False
@@ -39,7 +46,6 @@ class BaseLWTAuthentication(BaseAuthentication):
     """
     Base auth class based on Byte Web Token standard.
     """
-    LWT_AUTH_COOKIE = 'lwt'
 
     def __init__(self, *args, **kwargs):
         __init_settings()
@@ -50,9 +56,8 @@ class BaseLWTAuthentication(BaseAuthentication):
         auth = get_authorization_header(request).split()
 
         if not auth:
-            return request.COOKIES.get(self.LWT_AUTH_COOKIE)
-        auth_header_prefix = 'lwt'
-        if auth[0].decode('utf-8').lower() != auth_header_prefix:
+            return request.COOKIES.get(__SETTINGS['COOKIE_NAME'])
+        if auth[0].decode('utf-8').lower() != __SETTINGS['AUTH_HEADER_PREFIX']:
             return None
         return auth[1]
 
@@ -61,7 +66,7 @@ class BaseLWTAuthentication(BaseAuthentication):
         if lwt_value is None:
             return None
         try:
-            issue_max_time = int(time.time()) - __SETTINGS['EXPIRATION']
+            issue_max_time = int(time.time()) - __SETTINGS['SIGNATURE_EXPIRATION']
             data = self.bwt.decode(lwt_value, issue_max_time)
         except BEx.BWTExpired:
             raise REx.AuthenticationFailed("Signature expired")
@@ -77,7 +82,7 @@ class BaseLWTAuthentication(BaseAuthentication):
         return user
 
     def get_user(self, data):
-        return None
+        raise NotImplementedError()
 
     def get_blank_user(self, pk):
         User = get_user_model()
@@ -100,12 +105,12 @@ class BaseLWTAuthentication(BaseAuthentication):
 
 
 class LWTAuthentication(BaseLWTAuthentication):
-    def login(self, user, request, set_cookie=None, **kwargs):
+    def login(self, user, request, **kwargs):
         pk = user.pk
         if isinstance(pk, uuid.UUID):
             pk = str(pk)
         msg = {
-                # Explicitly convert to string, for tupes
+                # Explicitly convert to string (for uuid)
                 'pk': str(user.id)
                 }
         for field in __SETTINGS['SAVE_USER_FIELDS']:
@@ -116,8 +121,16 @@ class LWTAuthentication(BaseLWTAuthentication):
                 msg, app_version=__SETTINGS['APP_VERSION'])
         return token
 
+    def set_cookie(self, response, token):
+        response.set_cookie(__SETTINGS['COOKIE_NAME'], token,
+                            max_age=__SETTINGS['SIGNATURE_EXPIRATION'])
+
     def get_user(self, data):
         user = self.get_blank_user(data['msg']['pk'])
+        # Data is expired
+        if data['issue_time'] + __SETTINGS['DATA_EXPIRATION'] < time.time():
+            data['data_expired'] == True
+            return user
         for field in __SETTINGS['SAVE_USER_FIELDS']:
             setattr(user, field, data['msg'][field])
         return user
