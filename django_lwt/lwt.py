@@ -106,12 +106,14 @@ class BaseLWTAuthentication(BaseAuthentication):
 
 class LWTAuthentication(BaseLWTAuthentication):
     def login(self, user, request, **kwargs):
+        # Check csrf explicitly on login (as django restframework recommended)
+        if getattr(request, 'csrf_processing_done', False) == False:
+            raise REx.PermissionDenied(detail='CSRF token required for login')
         pk = user.pk
         if isinstance(pk, uuid.UUID):
             pk = str(pk)
         msg = {
-                # Explicitly convert to string (for uuid)
-                'pk': str(user.id)
+                'pk': pk,
                 }
         for field in __SETTINGS['SAVE_USER_FIELDS']:
             msg[field] = getattr(user, field)
