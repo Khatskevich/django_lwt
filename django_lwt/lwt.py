@@ -103,6 +103,13 @@ class BaseLWTAuthentication(BaseAuthentication):
     def validate_msg(self, msg):
         return msg
 
+    def set_cookie(self, response, token):
+        response.set_cookie(_SETTINGS['COOKIE_NAME'], token,
+                            max_age=_SETTINGS['SIGNATURE_EXPIRATION'])
+
+    def delete_cookie(self, response):
+        response.delete_cookie(_SETTINGS['COOKIE_NAME'])
+
 
 class LWTAuthentication(BaseLWTAuthentication):
     def login(self, user, request, **kwargs):
@@ -122,10 +129,6 @@ class LWTAuthentication(BaseLWTAuthentication):
         token = self.bwt.encode(
                 msg, app_version=_SETTINGS['APP_VERSION'])
         return token
-
-    def set_cookie(self, response, token):
-        response.set_cookie(_SETTINGS['COOKIE_NAME'], token,
-                            max_age=_SETTINGS['SIGNATURE_EXPIRATION'])
 
     def get_user(self, data):
         user = self.get_blank_user(data['msg']['pk'])
