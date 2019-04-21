@@ -56,7 +56,11 @@ class BaseLWTAuthentication(BaseAuthentication):
         auth = get_authorization_header(request).split()
 
         if not auth:
-            return request.COOKIES.get(_SETTINGS['COOKIE_NAME'])
+            cookie = request.COOKIES.get(_SETTINGS['COOKIE_NAME'])
+            # in test mode Django passes '' after cookie delete
+            if cookie == '':
+                return None
+            return cookie
         if auth[0].decode('utf-8').lower() != _SETTINGS['AUTH_HEADER_PREFIX']:
             return None
         return auth[1]
